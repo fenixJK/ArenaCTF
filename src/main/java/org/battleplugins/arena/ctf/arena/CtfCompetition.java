@@ -4,9 +4,12 @@ import net.kyori.adventure.text.Component;
 import org.battleplugins.arena.ArenaPlayer;
 import org.battleplugins.arena.competition.CompetitionType;
 import org.battleplugins.arena.competition.LiveCompetition;
+import org.battleplugins.arena.competition.map.MapType;
+import org.battleplugins.arena.competition.map.options.Bounds;
 import org.battleplugins.arena.ctf.ArenaCtf;
 import org.battleplugins.arena.ctf.CtfMessages;
 import org.battleplugins.arena.ctf.CtfUtil;
+import org.battleplugins.arena.ctf.arena.CtfCompetition.ActiveFlag;
 import org.battleplugins.arena.ctf.event.ArenaFlagCaptureEvent;
 import org.battleplugins.arena.ctf.event.ArenaFlagReturnEvent;
 import org.battleplugins.arena.messages.Message;
@@ -22,6 +25,7 @@ import org.bukkit.block.data.Rotatable;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.Nullable;
+import org.bukkit.util.Vector;
 
 import java.awt.Color;
 import java.time.Duration;
@@ -113,7 +117,24 @@ public class CtfCompetition extends LiveCompetition<CtfCompetition> {
                     continue;
                 }
 
-                if (flag.flag.getCaptureRegion().isInside(player.getLocation().toBlockLocation())) {
+                Bounds captureRegion = flag.flag.getCaptureRegion();
+                if (map.getType() == MapType.DYNAMIC) {
+                    Bounds mapBounds = map.getBounds();
+                    int offsetX = (mapBounds.getMinX() + mapBounds.getMaxX()) / 2;
+                    int offsetY = (mapBounds.getMinY() + mapBounds.getMaxY()) / 2;
+                    int offsetZ = (mapBounds.getMinZ() + mapBounds.getMaxZ()) / 2;
+
+                    captureRegion = new Bounds(
+                        captureRegion.getMinX() - offsetX,
+                        captureRegion.getMinY() - offsetY,
+                        captureRegion.getMinZ() - offsetZ,
+                        captureRegion.getMaxX() - offsetX,
+                        captureRegion.getMaxY() - offsetY,
+                        captureRegion.getMaxZ() - offsetZ
+                    );
+                }
+
+                if (captureRegion.isInside(player.getLocation().toBlockLocation())) {
                     if (flag.team.equals(arenaPlayer.getTeam())) {
                         // Check to see if a player is holding the opposite team's flag
                         if (this.capturedFlags.containsKey(arenaPlayer)) {
@@ -310,6 +331,18 @@ public class CtfCompetition extends LiveCompetition<CtfCompetition> {
             if (bannerMaterial == null) {
                 arena.getPlugin().warn("Could not find banner for color {}!", closestColor);
                 return;
+            }
+
+            if (map.getType() == MapType.DYNAMIC) {
+                Bounds bounds = map.getBounds();
+                Vector center = new Vector(
+                    (bounds.getMinX() + bounds.getMaxX()) / 2.0,
+                    (bounds.getMinY() + bounds.getMaxY()) / 2.0,
+                    (bounds.getMinZ() + bounds.getMaxZ()) / 2.0
+                );
+                
+                // Offset the flag location by the dynamic map's center
+                this.flagLocation = this.flagLocation.clone().subtract(center.getX(), center.getY(), center.getZ());
             }
 
             Rotatable rotatable = (Rotatable) bannerMaterial.createBlockData();
